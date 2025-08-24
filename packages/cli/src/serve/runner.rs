@@ -26,11 +26,11 @@ use std::{
     net::{IpAddr, TcpListener},
     path::PathBuf,
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 use subsecond_types::JumpTable;
 use syn::spanned::Spanned;
-use tokio::process::Command;
+use tokio::{net::TcpStream, process::Command};
 
 /// This is the primary "state" object that holds the builds and handles for the running apps.
 ///
@@ -591,8 +591,17 @@ impl AppServer {
             let open_browser = self.client.builds_opened == 0 && self.open_browser;
             self.open_all(devserver, open_browser).await?;
 
-            // Give a second for the server to boot
-            tokio::time::sleep(Duration::from_millis(300)).await;
+            // Wait for the backend server to come online before reloading
+            if let Some(addr) = devserver.proxied_server_address() {
+                let start = Instant::now();
+                // Try for up to 10 seconds before giving up
+                while start.elapsed() < Duration::from_secs(10) {
+                    if TcpStream::connect(addr).await.is_ok() {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                }
+            }
 
             // Update the screen + devserver with the new handle info
             devserver.send_reload_command().await
