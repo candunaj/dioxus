@@ -471,6 +471,30 @@ fn build_devserver_router(
         }
     }
 
+    // Dynamically serve the assets directory (e.g., Tailwind output like tailwind-*.css)
+    {
+        let assets_dir = build.build.root_dir().join("assets");
+        if assets_dir.exists() {
+            let base_path = format!(
+                "/{}",
+                runner
+                    .client()
+                    .build
+                    .base_path()
+                    .unwrap_or_default()
+                    .trim_matches('/')
+            );
+
+            let assets_mount = if base_path == "/" {
+                "/assets".to_string()
+            } else {
+                format!("{}/assets", base_path)
+            };
+
+            router = router.nest_service(&assets_mount, get_service(ServeDir::new(&assets_dir)));
+        }
+    }
+
     // For fullstack, liveview, and server, forward all requests to the inner server
     if runner.proxied_port.is_some() {
         tracing::debug!("Proxying requests to fullstack server at {fullstack_address:?}");
