@@ -493,7 +493,6 @@ impl AppServer {
                 }
                 self.clear_hot_reload_changes();
                 self.clear_cached_rsx();
-                server.send_patch_start().await;
             } else {
                 self.client.start_rebuild(BuildMode::Base { run: true });
                 if let Some(server) = self.server.as_mut() {

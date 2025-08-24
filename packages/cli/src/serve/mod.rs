@@ -17,6 +17,8 @@ use dioxus_dx_wire_format::BuildStage;
 pub(crate) use output::*;
 pub(crate) use runner::*;
 pub(crate) use server::*;
+use std::time::{Duration, Instant};
+use tokio::{fs, time::sleep};
 pub(crate) use update::*;
 
 /// For *all* builds, the CLI spins up a dedicated webserver, file watcher, and build infrastructure to serve the project.
@@ -179,6 +181,25 @@ pub(crate) async fn serve_all(args: ServeArgs, tracer: &TraceController) -> Resu
                                 bundle.time_end.duration_since(bundle.time_start).unwrap();
                             match builder.hotpatch(&bundle, id, cache).await {
                                 Ok(jumptable) => {
+                                    // Wait for the new wasm artifact to exist before notifying clients
+                                    let start = Instant::now();
+                                    let timeout = Duration::from_secs(5);
+                                    loop {
+                                        if fs::metadata(&jumptable.lib).await.is_ok() {
+                                            break;
+                                        }
+                                        if start.elapsed() > timeout {
+                                            bail!(
+                                                "Timed out waiting for hotpatch artifact: {}",
+                                                jumptable.lib.display()
+                                            );
+                                        }
+                                        sleep(Duration::from_millis(100)).await;
+                                    }
+
+                                    // Notify clients that the patch is starting only after readiness
+                                    devserver.send_patch_start().await;
+
                                     let pid = match id {
                                         BuildId::CLIENT => builder.client.pid,
                                         _ => builder.server.as_ref().and_then(|s| s.pid),
