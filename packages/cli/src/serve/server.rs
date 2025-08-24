@@ -446,6 +446,31 @@ fn build_devserver_router(
         router = super::proxy::add_proxy(router, proxy_config)?;
     }
 
+    // Always ensure the latest wasm patches are served directly by the dev server.
+    // This avoids relying on a backend that may have statically snapshotted routes at startup.
+    {
+        let wasm_dir = build.build.root_dir().join("wasm");
+        if wasm_dir.exists() {
+            let base_path = format!(
+                "/{}",
+                runner
+                    .client()
+                    .build
+                    .base_path()
+                    .unwrap_or_default()
+                    .trim_matches('/')
+            );
+
+            let wasm_mount = if base_path == "/" {
+                "/wasm".to_string()
+            } else {
+                format!("{}/wasm", base_path)
+            };
+
+            router = router.nest_service(&wasm_mount, get_service(ServeDir::new(&wasm_dir)));
+        }
+    }
+
     // For fullstack, liveview, and server, forward all requests to the inner server
     if runner.proxied_port.is_some() {
         tracing::debug!("Proxying requests to fullstack server at {fullstack_address:?}");

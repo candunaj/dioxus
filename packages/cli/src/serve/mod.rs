@@ -184,27 +184,6 @@ pub(crate) async fn serve_all(args: ServeArgs, tracer: &TraceController) -> Resu
                                         _ => builder.server.as_ref().and_then(|s| s.pid),
                                     };
 
-                                    // Ensure the jump table library exists before notifying clients.
-                                    // This prevents race conditions where the file is not yet written
-                                    // to disk when the patch is sent.
-                                    let lib_path = jumptable.lib.clone();
-                                    let timeout = std::time::Duration::from_secs(60);
-                                    let start = tokio::time::Instant::now();
-                                    loop {
-                                        if tokio::fs::metadata(&lib_path).await.is_ok() {
-                                            break;
-                                        }
-                                        if start.elapsed() > timeout {
-                                            tracing::warn!(
-                                                "Timed out waiting for jump table library at {}",
-                                                lib_path.display()
-                                            );
-                                            break;
-                                        }
-                                        tokio::time::sleep(std::time::Duration::from_millis(50))
-                                            .await;
-                                    }
-
                                     devserver.send_patch(jumptable, elapsed, id, pid).await
                                 }
                                 Err(err) => {
