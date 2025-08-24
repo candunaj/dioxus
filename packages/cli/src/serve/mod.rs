@@ -188,7 +188,7 @@ pub(crate) async fn serve_all(args: ServeArgs, tracer: &TraceController) -> Resu
                                     // This prevents race conditions where the file is not yet written
                                     // to disk when the patch is sent.
                                     let lib_path = jumptable.lib.clone();
-                                    let timeout = std::time::Duration::from_secs(5);
+                                    let timeout = std::time::Duration::from_secs(60);
                                     let start = tokio::time::Instant::now();
                                     loop {
                                         if tokio::fs::metadata(&lib_path).await.is_ok() {
